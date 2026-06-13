@@ -283,39 +283,55 @@ async def scrape_profile_stats(account_id: str, username: str) -> dict:
     page = await get_page(account_id, username)
     try:
         await page.goto(f"https://x.com/{username}", wait_until="domcontentloaded", timeout=30000)
-        await asyncio.sleep(3)
-        stats = await page.evaluate("""() => {
+        # Profile counts render asynchronously; wait for the stats links to appear.
+        try:
+            await page.wait_for_selector('a[href$="/following"]', timeout=15000)
+        except Exception:
+            pass
+        await asyncio.sleep(2)
+        stats = await page.evaluate(r"""() => {
             const result = { followers: 0, following: 0, tweets: 0 };
-            const links = document.querySelectorAll('a[href$="/followers"], a[href$="/following"], a[href$="/verified_followers"]');
-            for (const a of links) {
-                const text = a.innerText.replace(/,/g, '').trim();
-                const match = text.match(/([\\d.]+[KMB]?)\\s/i);
-                if (!match) continue;
-                const num = parseCount(match[1]);
-                const href = a.getAttribute('href') || '';
-                if (href.includes('/followers')) result.followers = num;
-                if (href.includes('/following')) result.following = num;
+
+            function parseCount(raw) {
+                if (!raw) return 0;
+                const s = raw.replace(/,/g, '').trim().toUpperCase();
+                const m = s.match(/^([\d.]+)\s*([KMB]?)/);
+                if (!m) return 0;
+                let n = parseFloat(m[1]);
+                if (m[2] === 'K') n *= 1e3;
+                else if (m[2] === 'M') n *= 1e6;
+                else if (m[2] === 'B') n *= 1e9;
+                return Math.round(n);
             }
-            const header = document.querySelector('[data-testid="UserProfileHeader_Items"]');
-            if (header) {
-                const parent = header.closest('div[data-testid="UserName"]')?.parentElement;
-            }
-            // Try nav links for post count
-            const navLinks = document.querySelectorAll('nav a');
-            for (const a of navLinks) {
-                const t = a.innerText.replace(/,/g, '').trim();
-                if (/posts?$/i.test(t)) {
-                    const m = t.match(/([\\d.]+[KMB]?)/i);
-                    if (m) result.tweets = parseCount(m[1]);
+
+            // X shows the exact number in a child span's title attribute when the
+            // visible text is abbreviated (e.g. "1.2K"); fall back to link text.
+            function countFromLink(a) {
+                if (!a) return 0;
+                const titled = a.querySelector('span[title]');
+                if (titled) {
+                    const v = parseCount(titled.getAttribute('title'));
+                    if (v) return v;
                 }
+                const m = a.innerText.replace(/,/g, '').match(/([\d.]+[KMB]?)/i);
+                return m ? parseCount(m[1]) : 0;
             }
-            function parseCount(s) {
-                s = s.toUpperCase();
-                if (s.endsWith('K')) return Math.round(parseFloat(s) * 1000);
-                if (s.endsWith('M')) return Math.round(parseFloat(s) * 1000000);
-                if (s.endsWith('B')) return Math.round(parseFloat(s) * 1000000000);
-                return parseInt(s) || 0;
+
+            result.following = countFromLink(document.querySelector('a[href$="/following"]'));
+            // Followers link is "/verified_followers" on current X, "/followers" otherwise.
+            result.followers = countFromLink(
+                document.querySelector('a[href$="/verified_followers"]') ||
+                document.querySelector('a[href$="/followers"]')
+            );
+
+            // Post count renders as "N posts" text in the profile header.
+            const scope = document.querySelector('div[data-testid="primaryColumn"]') || document.body;
+            for (const el of scope.querySelectorAll('div, span, h2')) {
+                const t = (el.textContent || '').trim();
+                const m = t.match(/^([\d.,]+[KMB]?)\s+posts?$/i);
+                if (m) { result.tweets = parseCount(m[1]); break; }
             }
+
             return result;
         }""")
         print(f"[browser] Profile stats for @{username}: {stats}", flush=True)
