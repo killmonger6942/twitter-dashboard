@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.database import Account, Persona, get_db
+from backend.services import ai_service
 
 router = APIRouter(prefix="/api/personas", tags=["personas"])
 
@@ -139,6 +140,16 @@ async def assign_persona(persona_id: str, account_id: str, db: AsyncSession = De
     account.persona_id = persona_id
     await db.commit()
     return {"message": f"Persona '{persona.name}' assigned to @{account.username}"}
+
+
+class GenerateRequest(BaseModel):
+    description: str
+
+
+@router.post("/generate")
+async def generate_persona(req: GenerateRequest):
+    result = await ai_service.generate_persona(req.description)
+    return result
 
 
 @router.delete("/{persona_id}")

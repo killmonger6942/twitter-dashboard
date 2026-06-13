@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Save, Trash2, UserCircle } from 'lucide-react';
+import { Plus, Save, Trash2, UserCircle, Sparkles, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
 import type { Persona, Account } from '../lib/api';
 
@@ -12,6 +12,8 @@ export default function Personas() {
     posting_frequency: '3-5 per day', example_tweets: '',
   });
   const [error, setError] = useState('');
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [generating, setGenerating] = useState(false);
 
   const load = async () => {
     setPersonas(await api.personas.list());
@@ -61,6 +63,28 @@ export default function Personas() {
     }
   };
 
+  const generatePersona = async () => {
+    if (!aiPrompt.trim()) return;
+    setGenerating(true);
+    setError('');
+    try {
+      const result = await api.personas.generate(aiPrompt.trim());
+      setForm({
+        name: result.name || '',
+        tone: result.tone || '',
+        topics: (result.topics || []).join(', '),
+        style_guide: result.style_guide || '',
+        posting_frequency: result.posting_frequency || '3-5 per day',
+        example_tweets: (result.example_tweets || []).join('\n'),
+      });
+      setEditing(null);
+      setAiPrompt('');
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setGenerating(false);
+  };
+
   const assignPersona = async (personaId: string, accountId: string) => {
     try {
       await api.personas.assign(personaId, accountId);
@@ -83,9 +107,37 @@ export default function Personas() {
       {error && (
         <div className="bg-red-900/50 border border-red-700 text-red-200 p-3 rounded-lg mb-4">
           {error}
+          <button onClick={() => setError('')} className="ml-2 text-red-400 hover:text-red-200">x</button>
         </div>
       )}
 
+      {/* AI Generate */}
+      <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-4 mb-4">
+        <h3 className="font-semibold mb-3 flex items-center gap-2">
+          <Sparkles size={16} className="text-amber-400" />
+          Generate with AI
+        </h3>
+        <div className="flex gap-2">
+          <input
+            placeholder="Describe the persona... (e.g., sarcastic AI researcher who tweets about LLM failures)"
+            value={aiPrompt}
+            onChange={e => setAiPrompt(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && generatePersona()}
+            className="flex-1 bg-neutral-700 border border-neutral-600 rounded-lg px-4 py-2 text-white placeholder-neutral-500 focus:outline-none focus:border-amber-500"
+          />
+          <button
+            onClick={generatePersona}
+            disabled={generating || !aiPrompt.trim()}
+            className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center gap-2 shrink-0"
+          >
+            {generating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+            Generate
+          </button>
+        </div>
+        <p className="text-xs text-neutral-500 mt-2">AI will fill in the form below. Review and edit before saving.</p>
+      </div>
+
+      {/* Manual form */}
       <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-4 mb-6">
         <h3 className="font-semibold mb-3">{editing ? 'Edit Persona' : 'New Persona'}</h3>
         <div className="space-y-3">
@@ -193,7 +245,7 @@ export default function Personas() {
           );
         })}
         {personas.length === 0 && (
-          <p className="text-neutral-500 text-center py-8">No personas yet. Create one above.</p>
+          <p className="text-neutral-500 text-center py-8">No personas yet. Create one above or generate with AI.</p>
         )}
       </div>
     </div>

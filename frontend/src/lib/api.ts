@@ -124,6 +124,11 @@ export const api = {
     delete: (id: string) => request<{ message: string }>(`/personas/${id}`, {
       method: 'DELETE',
     }),
+    generate: (description: string) =>
+      request<{ name: string; tone: string; topics: string[]; style_guide: string; posting_frequency: string; example_tweets: string[] }>('/personas/generate', {
+        method: 'POST',
+        body: JSON.stringify({ description }),
+      }),
   },
 
   content: {

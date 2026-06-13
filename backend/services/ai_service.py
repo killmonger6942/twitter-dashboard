@@ -85,3 +85,44 @@ async def generate_tweets(
 
     tweets = json.loads(text)
     return [t for t in tweets if isinstance(t, str) and len(t) <= 280]
+
+
+async def generate_persona(description: str) -> dict:
+    user_msg = (
+        f"Create a Twitter persona based on this description:\n\n"
+        f'"{description}"\n\n'
+        "Return ONLY a JSON object with these exact fields:\n"
+        '{\n'
+        '  "name": "short catchy persona name (2-4 words)",\n'
+        '  "tone": "describe the voice and tone in a phrase",\n'
+        '  "topics": ["topic1", "topic2", "topic3", "topic4", "topic5"],\n'
+        '  "style_guide": "2-3 sentences describing how this persona writes, what makes their voice unique, and any quirks",\n'
+        '  "posting_frequency": "X-Y per day",\n'
+        '  "example_tweets": ["tweet1", "tweet2", "tweet3", "tweet4", "tweet5"]\n'
+        '}\n\n'
+        "Rules for the persona:\n"
+        "- Example tweets must be under 280 characters each\n"
+        "- Example tweets should feel authentic, not generic or corporate\n"
+        "- Topics should be specific enough to guide content but broad enough for variety\n"
+        "- The tone should be distinctive and memorable\n"
+        "- Never include specific AI model names (GPT-4, Claude, etc.) in examples\n"
+        "- No hashtags or emojis in example tweets\n"
+        "Return ONLY the JSON, no markdown, no backticks."
+    )
+
+    response = client.models.generate_content(
+        model=settings.content_model,
+        contents=[types.Content(role="user", parts=[types.Part.from_text(text=user_msg)])],
+        config=types.GenerateContentConfig(
+            temperature=0.9,
+            max_output_tokens=1024,
+        ),
+    )
+
+    text = (response.text or "").strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        lines = [l for l in lines if not l.startswith("```")]
+        text = "\n".join(lines).strip()
+
+    return json.loads(text)
