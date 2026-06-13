@@ -110,19 +110,25 @@ async def generate_persona(description: str) -> dict:
         "Return ONLY the JSON, no markdown, no backticks."
     )
 
-    response = client.models.generate_content(
-        model=settings.content_model,
-        contents=[types.Content(role="user", parts=[types.Part.from_text(text=user_msg)])],
-        config=types.GenerateContentConfig(
-            temperature=0.9,
-            max_output_tokens=1024,
-        ),
-    )
+    for attempt in range(3):
+        response = client.models.generate_content(
+            model=settings.content_model,
+            contents=[types.Content(role="user", parts=[types.Part.from_text(text=user_msg)])],
+            config=types.GenerateContentConfig(
+                temperature=0.9,
+                max_output_tokens=4096,
+            ),
+        )
 
-    text = (response.text or "").strip()
-    if text.startswith("```"):
-        lines = text.split("\n")
-        lines = [l for l in lines if not l.startswith("```")]
-        text = "\n".join(lines).strip()
+        text = (response.text or "").strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            lines = [l for l in lines if not l.startswith("```")]
+            text = "\n".join(lines).strip()
 
-    return json.loads(text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            if attempt == 2:
+                raise
+            continue
