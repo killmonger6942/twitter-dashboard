@@ -64,6 +64,18 @@ function AccountAnalytics({ account }: { account: Account }) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // Manual refresh: actively scrape live profile stats from Twitter, then reload
+  // everything. Kept separate from loadData so automatic/mount loads don't scrape.
+  const refreshAll = async () => {
+    setLoading(true);
+    try {
+      await api.analytics.snapshotProfile(account.id);
+    } catch (e) {
+      console.error('profile sync failed', e);
+    }
+    await loadData();
+  };
+
   const toggleEngine = async () => {
     setActionLoading('engine');
     try {
@@ -129,8 +141,10 @@ function AccountAnalytics({ account }: { account: Account }) {
             <option value={30}>30d</option>
           </select>
           <button
-            onClick={loadData}
-            className="p-1.5 bg-neutral-900 hover:bg-neutral-700 rounded-lg text-neutral-400 hover:text-white transition-colors"
+            onClick={refreshAll}
+            disabled={loading}
+            title="Sync live stats from Twitter and refresh"
+            className="p-1.5 bg-neutral-900 hover:bg-neutral-700 rounded-lg text-neutral-400 hover:text-white transition-colors disabled:opacity-50"
           >
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           </button>
