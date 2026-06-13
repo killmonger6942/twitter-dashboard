@@ -10,7 +10,22 @@ from backend.config import settings
 from backend.models.database import ComputerUseLog, async_session
 from backend.services import browser_service
 
-client = genai.Client(api_key=settings.gemini_api_key)
+class _LazyGenAIClient:
+    """Defers genai.Client creation until first use so the app boots without a key."""
+
+    _client = None
+
+    def __getattr__(self, name):
+        if _LazyGenAIClient._client is None:
+            if not settings.gemini_api_key:
+                raise RuntimeError(
+                    "GEMINI_API_KEY is not set in .env — required for AI features."
+                )
+            _LazyGenAIClient._client = genai.Client(api_key=settings.gemini_api_key)
+        return getattr(_LazyGenAIClient._client, name)
+
+
+client = _LazyGenAIClient()
 
 SYSTEM_PROMPT = (
     "You are an AI controlling a Chromium browser to perform Twitter/X actions. "
