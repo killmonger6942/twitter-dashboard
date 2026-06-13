@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Save, Trash2, UserCircle, Link } from 'lucide-react';
+import { Plus, Save, Trash2, UserCircle } from 'lucide-react';
 import { api } from '../lib/api';
 import type { Persona, Account } from '../lib/api';
 
