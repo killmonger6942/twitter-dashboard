@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     allowed_origins: str = "http://localhost:5173,http://localhost:4173"
 
+    # Public status broadcast (read-only snapshot pushed to a public GitHub repo file).
+    # Leave github_token / status_repo empty to disable publishing entirely.
+    github_token: str = ""
+    status_repo: str = ""  # "owner/repo"
+    status_branch: str = "main"
+    status_path: str = "status.json"
+    publish_interval_minutes: int = 30
+
     model_config = {"env_file": str(BASE_DIR / ".env"), "extra": "ignore"}
 
 

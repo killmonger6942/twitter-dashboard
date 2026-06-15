@@ -1,5 +1,6 @@
 import shutil
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -11,7 +12,7 @@ from backend.middleware.auth import AuthMiddleware
 from backend.models.database import Account, async_session, init_db
 from backend.routes import accounts, analytics, auth, behavior, content, monitor, personas
 from backend.scheduler import scheduler
-from backend.services import behavior_engine, browser_service, follow_campaign
+from backend.services import behavior_engine, browser_service, follow_campaign, publisher
 
 
 @asynccontextmanager
@@ -19,6 +20,7 @@ async def lifespan(app: FastAPI):
     await init_db()
     scheduler.start()
     await _auto_recover()
+    _schedule_publisher()
     yield
     scheduler.shutdown(wait=False)
     await browser_service.shutdown()
@@ -30,6 +32,25 @@ async def _auto_recover():
         await follow_campaign.auto_recover_campaigns()
     except Exception as e:
         print(f"[recovery] Auto-recovery error: {e}", flush=True)
+
+
+def _schedule_publisher():
+    if not (settings.github_token and settings.status_repo):
+        print("[publisher] disabled (set GITHUB_TOKEN and STATUS_REPO to enable)", flush=True)
+        return
+    scheduler.add_job(
+        publisher.publish_safe,
+        "interval",
+        minutes=settings.publish_interval_minutes,
+        id="status_publisher",
+        replace_existing=True,
+        next_run_time=datetime.now(),  # publish once shortly after startup, then on interval
+    )
+    print(
+        f"[publisher] every {settings.publish_interval_minutes}m -> "
+        f"{settings.status_repo}/{settings.status_path}",
+        flush=True,
+    )
 
 
 app = FastAPI(title="Twitter Dashboard", lifespan=lifespan)

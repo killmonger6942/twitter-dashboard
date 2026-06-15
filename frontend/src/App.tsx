@@ -6,7 +6,13 @@ import Compose from './pages/Compose';
 import Queue from './pages/Queue';
 import Personas from './pages/Personas';
 import LoginPage from './components/LoginPage';
+import PublicStatus from './pages/PublicStatus';
 import { api, getToken, clearToken } from './lib/api';
+
+// On Vercel this is built with VITE_PUBLIC_MODE=true, so it serves only the
+// read-only public status board (no login, no backend). Locally the flag is
+// unset, so the full control app runs against the local backend.
+const PUBLIC_MODE = import.meta.env.VITE_PUBLIC_MODE === 'true';
 
 function NavItem({ to, icon: Icon, label }: { to: string; icon: any; label: string }) {
   return (
@@ -62,7 +68,7 @@ function Dashboard() {
   );
 }
 
-export default function App() {
+function ControlApp() {
   const [authed, setAuthed] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -92,4 +98,8 @@ export default function App() {
   }
 
   return <Dashboard />;
+}
+
+export default function App() {
+  return PUBLIC_MODE ? <PublicStatus /> : <ControlApp />;
 }
